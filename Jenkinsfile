@@ -2,7 +2,10 @@ pipeline {
     agent none // Permite definir agentes distintos por cada stage
 
     environment {
+        DEPLOY_HOST = 'host.docker.internal'
+        DEPLOY_USER = 'deploy'
         DEPLOY_DIR = '/var/www/nodeapi-services'
+        APP_NAME = 'mi-api'
     }
 
     stages {
@@ -24,23 +27,44 @@ pipeline {
             }
         }
 
-        stage('Deploy y Recarga en Host') {
-            agent any // Se ejecuta directo en el servidor Linux donde corre Jenkins
-            steps {
-                // 1. Sincronizar archivos al directorio final
-                // IMPORTANTE: Se excluye .env para no sobreescribir las variables del servidor
-                sh """
-                    rsync -av --delete \
-                        --exclude='.git' \
-                        --exclude='.env' \
-                        --exclude='Jenkinsfile' \
-                        ./ ${DEPLOY_DIR}/
-                """
+        stage('Deploy al Host') {
 
-                // 2. Recarga en caliente con PM2 (Zero-Downtime)
-                sh """
-                    pm2 reload mi-api || pm2 start ${DEPLOY_DIR}/src/index.js --name "mi-api"
-                """
+            agent any
+
+            steps {
+                sshagent(credentials: ['deploy-host-key']) {
+
+                    sh '''
+                        rsync -avz --delete \
+                          -e "ssh -o StrictHostKeyChecking=no" \
+                          --exclude='.git' \
+                          --exclude='.env' \
+                          --exclude='Jenkinsfile' \
+                          ./ \
+                          ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/
+                    '''
+                }
+            }
+        }
+
+
+        stage('Recargar aplicación') {
+
+            agent any
+
+            steps {
+
+                sshagent(credentials: ['deploy-host-key']) {
+
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no \
+                        ${DEPLOY_USER}@${DEPLOY_HOST} "
+                            pm2 reload ${APP_NAME} || \
+                            pm2 start ${DEPLOY_DIR}/src/index.js \
+                            --name ${APP_NAME}
+                        "
+                    '''
+                }
             }
         }
     }
