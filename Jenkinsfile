@@ -70,9 +70,6 @@ pipeline {
     }
 
     post {
-        always {
-            cleanWs()
-        }
         success {
             echo "API desplegada y recargada con éxito en ${DEPLOY_DIR}"
         }
