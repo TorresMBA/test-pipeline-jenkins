@@ -1,0 +1,18 @@
+{
+	"name": "test-pipeline-jenkins",
+	"version": "1.0.0",
+	"description": "Proyecto de Prueba para los Pipelines de Jenkins",
+	"license": "MIT",
+	"author": "torresmba",
+	"type": "module",
+	"main": "src/index.js",
+	"scripts": {
+		"start": "node src/index.js",
+		"dev": "node --watch src/index.js",
+		"test": "node --test"
+	},
+	"dependencies": {
+		"dotenv": "^17.4.2",
+		"express": "^5.2.1"
+	}
+}
