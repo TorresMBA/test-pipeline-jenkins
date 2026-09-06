@@ -28,46 +28,46 @@ pipeline {
             }
         }
 
-        stage('Deploy al Host') {
+        // stage('Deploy al Host') {
 
-            agent any
+        //     agent any
 
-            steps {
-                sshagent(credentials: ['deploy-host-key']) {
+        //     steps {
+        //         sshagent(credentials: ['deploy-host-key']) {
 
-                    sh '''
-                        rsync -avz --delete \
-                          -e "ssh -o StrictHostKeyChecking=no" \
-                          --exclude='.git' \
-                          --exclude='.env' \
-                          --exclude='Jenkinsfile' \
-                          ./ \
-                          ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/
-                    '''
-                }
-            }
-        }
+        //             sh '''
+        //                 rsync -avz --delete \
+        //                   -e "ssh -o StrictHostKeyChecking=no" \
+        //                   --exclude='.git' \
+        //                   --exclude='.env' \
+        //                   --exclude='Jenkinsfile' \
+        //                   ./ \
+        //                   ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/
+        //             '''
+        //         }
+        //     }
+        // }
 
 
-        stage('Recargar aplicación') {
+        // stage('Recargar aplicación') {
 
-            agent any
+        //     agent any
 
-            steps {
+        //     steps {
 
-                sshagent(credentials: ['deploy-host-key']) {
+        //         sshagent(credentials: ['deploy-host-key']) {
 
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no \
-                        ${DEPLOY_USER}@${DEPLOY_HOST} "
-                            pm2 reload ${APP_NAME} || \
-                            pm2 start ${DEPLOY_DIR}/src/index.js \
-                            --name ${APP_NAME}
-                        "
-                    '''
-                }
-            }
-        }
+        //             sh '''
+        //                 ssh -o StrictHostKeyChecking=no \
+        //                 ${DEPLOY_USER}@${DEPLOY_HOST} "
+        //                     pm2 reload ${APP_NAME} || \
+        //                     pm2 start ${DEPLOY_DIR}/src/index.js \
+        //                     --name ${APP_NAME}
+        //                 "
+        //             '''
+        //         }
+        //     }
+        // }
 
         stage('Docker Build'){
 
