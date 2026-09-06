@@ -17,6 +17,6 @@ app.get('/api/saludo', (req, res) => {
 	res.json({ mensaje: '¡Servidor funcionando correctamente!' });
 });
 
-app.listen(PORT, () => {
-	console.log(`Servidor activo en http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+	console.log(`Servidor activo en http://0.0.0.0:${PORT}`);
 });

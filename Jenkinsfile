@@ -99,7 +99,7 @@ pipeline {
 		            try {
 		                sh '''
 		                    sleep 3
-		                    curl --fail http://localhost:8084/api/health
+		                    docker exec ${APP_NAME}-green node -e "fetch('http://127.0.0.1:3000/api/health').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
 		                '''
 		            } catch (Exception e) {
 			                sh 'docker ps -a --filter name=${APP_NAME}-green'
@@ -135,7 +135,7 @@ pipeline {
 		            try {
 		                sh '''
 		                    sleep 3
-		                    curl --fail http://localhost:8085/api/health
+		                    docker exec ${APP_NAME} node -e "fetch('http://127.0.0.1:3000/api/health').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
 		                '''
 		            } catch (Exception e) {
 		
@@ -159,7 +159,7 @@ pipeline {
 		
 		                    sleep 3
 		
-		                    curl --fail http://localhost:8085/api/health
+		                    docker exec ${APP_NAME} node -e "fetch('http://127.0.0.1:3000/api/health').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
 		                """
 		
 		                throw e
