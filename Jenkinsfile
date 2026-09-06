@@ -70,7 +70,6 @@ pipeline {
         }
 
         stage('Docker Build'){
-		    agent any
 
 		    steps {
 				sh 'docker build -t ${APP_NAME}:${IMAGE_TAG} .'
@@ -78,7 +77,6 @@ pipeline {
 		}
 
         stage('Docker Deploy') {
-		    agent any
 
 		    steps {
 		        sh '''
@@ -95,7 +93,6 @@ pipeline {
 		}
 
         stage('Health Check GREEN') {
-		    agent any
 
 		    steps {
 		        script {
@@ -116,7 +113,6 @@ pipeline {
 		}
 
         stage('Switch to GREEN') {
-		    agent any
 
 		    steps {
 		        sh '''
@@ -133,7 +129,6 @@ pipeline {
 		}
 
         stage('Health Check Production') {
-		    agent any
 
 		    steps {
 		        script {
