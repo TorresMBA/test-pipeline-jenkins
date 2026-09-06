@@ -6,6 +6,7 @@ pipeline {
         DEPLOY_USER = 'deploy'
         DEPLOY_DIR = '/var/www/nodeapi-services'
         APP_NAME = 'mi-api'
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
@@ -67,6 +68,109 @@ pipeline {
                 }
             }
         }
+
+        stage('Docker Build'){
+		    agent any
+
+		    steps {
+				sh 'docker build -t ${APP_NAME}:${IMAGE_TAG} .'
+		    }
+		}
+
+        stage('Docker Deploy') {
+		    agent any
+
+		    steps {
+		        sh '''
+		            echo "Deploying GREEN..."
+		
+		            docker rm -f ${APP_NAME}-green || true
+		
+		            docker run -d \
+		                --name ${APP_NAME}-green \
+		                -p 8083:3000 \
+		                ${APP_NAME}:${IMAGE_TAG}
+		        '''
+		    }
+		}
+
+        stage('Health Check GREEN') {
+		    agent any
+
+		    steps {
+		        script {
+		            try {
+		                sh '''
+		                    sleep 3
+		                    curl --fail http://localhost:8083/api/health
+		                '''
+		            } catch (Exception e) {
+		
+		                sh 'docker rm -f ${APP_NAME}-green || true'
+		
+		                error "GREEN deployment failed"
+		            }
+		        }
+		    }
+		}
+
+        stage('Switch to GREEN') {
+		    agent any
+
+		    steps {
+		        sh '''
+		            docker rm -f ${APP_NAME} || true
+		
+		            docker run -d \
+		                --name ${APP_NAME} \
+		                -p 8082:3000 \
+		                ${APP_NAME}:${IMAGE_TAG}
+		
+		            docker rm -f ${APP_NAME}-green || true
+		        '''
+		    }
+		}
+
+        stage('Health Check Production') {
+		    agent any
+
+		    steps {
+		        script {
+		            try {
+		                sh '''
+		                    sleep 3
+		                    curl --fail http://localhost:8082/api/health
+		                '''
+		            } catch (Exception e) {
+		
+		                def previousBuild = currentBuild.previousSuccessfulBuild
+		
+		                if (previousBuild == null) {
+		                    error "No previous successful build available"
+		                }
+		
+		                def previousTag = previousBuild.number.toString()
+		
+		                echo "Rolling back to ${APP_NAME}:${previousTag}"
+		
+		                sh """
+		                    docker rm -f ${APP_NAME} || true
+		
+		                    docker run -d \
+		                        --name ${APP_NAME} \
+		                        -p 8082:3000 \
+		                        ${APP_NAME}:${previousTag}
+		
+		                    sleep 3
+		
+		                    curl --fail http://localhost:8082/api/health
+		                """
+		
+		                throw e
+		            }
+		        }
+		    }
+		}
     }
 
     post {
