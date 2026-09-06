@@ -1,5 +1,5 @@
 pipeline {
-    agent none // Permite definir agentes distintos por cada stage
+    agent any // Permite definir agentes distintos por cada stage
 
     environment {
         DEPLOY_HOST = 'host.docker.internal'
