@@ -86,7 +86,7 @@ pipeline {
 		
 		            docker run -d \
 		                --name ${APP_NAME}-green \
-		                -p 8083:3000 \
+		                -p 8084:3000 \
 		                ${APP_NAME}:${IMAGE_TAG}
 		        '''
 		    }
@@ -99,7 +99,7 @@ pipeline {
 		            try {
 		                sh '''
 		                    sleep 3
-		                    curl --fail http://localhost:8083/api/health
+		                    curl --fail http://localhost:8084/api/health
 		                '''
 		            } catch (Exception e) {
 			                sh 'docker ps -a --filter name=${APP_NAME}-green'
@@ -120,7 +120,7 @@ pipeline {
 		
 		            docker run -d \
 		                --name ${APP_NAME} \
-		                -p 8082:3000 \
+		                -p 8085:3000 \
 		                ${APP_NAME}:${IMAGE_TAG}
 		
 		            docker rm -f ${APP_NAME}-green || true
@@ -135,7 +135,7 @@ pipeline {
 		            try {
 		                sh '''
 		                    sleep 3
-		                    curl --fail http://localhost:8082/api/health
+		                    curl --fail http://localhost:8085/api/health
 		                '''
 		            } catch (Exception e) {
 		
@@ -154,12 +154,12 @@ pipeline {
 		
 		                    docker run -d \
 		                        --name ${APP_NAME} \
-		                        -p 8082:3000 \
+		                        -p 8085:3000 \
 		                        ${APP_NAME}:${previousTag}
 		
 		                    sleep 3
 		
-		                    curl --fail http://localhost:8082/api/health
+		                    curl --fail http://localhost:8085/api/health
 		                """
 		
 		                throw e
