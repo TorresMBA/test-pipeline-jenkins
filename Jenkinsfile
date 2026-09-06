@@ -121,6 +121,8 @@ pipeline {
 		            docker run -d \
 		                --name ${APP_NAME} \
 		                -p 8085:3000 \
+                        --network devops-net \
+                        --restart unless-stopped \
 		                ${APP_NAME}:${IMAGE_TAG}
 		
 		            docker rm -f ${APP_NAME}-green || true
