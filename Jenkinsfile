@@ -105,7 +105,8 @@ pipeline {
 		                    curl --fail http://localhost:8083/api/health
 		                '''
 		            } catch (Exception e) {
-		
+			                sh 'docker ps -a --filter name=${APP_NAME}-green'
+			                sh 'docker logs ${APP_NAME}-green || true'
 		                sh 'docker rm -f ${APP_NAME}-green || true'
 		
 		                error "GREEN deployment failed"
