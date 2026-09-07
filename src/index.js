@@ -14,7 +14,7 @@ app.get('/api/health', (req, res) => {
 
 // Endpoint REST básico
 app.get('/api/saludo', (req, res) => {
-	res.json({ mensaje: '¡Servidor funcionando correctamente!' });
+	res.json({ mensaje: '¡Servidor funcionando correctamente | He sido modificado!' });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
