@@ -40,7 +40,19 @@ pipeline {
         stage('SonarQube') {
           steps {
             withSonarQubeEnv('sonarqube') {
-              sh 'mercury-ci sonar "$APP" "-Dsonar.exclusions=node_modules/**"'
+              sh 'mercury-ci sonar "$APP" "-Dsonar.exclusions=node_modules/**"
+
+                echo
+                echo "=== SONAR REPORT ==="
+
+                find . -name report-task.txt -print
+
+                if [ -f .scannerwork/report-task.txt ]; then
+                    cat .scannerwork/report-task.txt
+                else
+                    echo "NO EXISTE .scannerwork/report-task.txt"
+                fi
+              '''
             }
           }
         }
