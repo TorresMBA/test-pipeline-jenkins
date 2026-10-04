@@ -1,179 +1,121 @@
+// Plantilla CI para Node.js. Copiar a la raíz del repo de la app y ajustar APP.
 pipeline {
-    agent any // Permite definir agentes distintos por cada stage
+  agent none
 
-    environment {
-        DEPLOY_HOST = 'host.docker.internal'
-        DEPLOY_USER = 'deploy'
-        DEPLOY_DIR = '/var/www/nodeapi-services'
-        APP_NAME = 'mi-api'
-        IMAGE_TAG = "${BUILD_NUMBER}"
-    }
+  options {
+    timestamps()
+    // Un push nuevo cancela el build anterior de este job, aunque esté esperando en "Aprobar prod"
+    disableConcurrentBuilds(abortPrevious: true)
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+  }
 
-    stages {
-        stage('Build & Test en Docker') {
-            agent {
-                docker {
-                    image 'node:20-alpine'
-                    // Reutiliza la caché de npm del host para builds ultra rápidos
-                    args '-v /var/lib/jenkins/.npm:/root/.npm'
+  environment {
+    APP = 'api-node' // nombre de imagen y contenedor: minúsculas y guiones
+    TAG = "${BUILD_NUMBER}"
+  }
+
+  stages {
+    stage('CI') {
+      // 'node' es la versión por defecto. Para fijar otra: 'node-20', 'node-22' o 'node-24'.
+      // La imagen de la app se empaqueta con la misma versión que el agente.
+      agent { label 'node-20' }
+      options {
+        // Un build colgado no debe ocupar un cupo de agente indefinidamente
+        timeout(time: 45, unit: 'MINUTES')
+      }
+      environment {
+        REGISTRY = credentials('registry')
+      }
+      stages {
+        stage('Build y test') {
+          steps {
+            sh '''
+              npm ci
+              npm run build --if-present
+              npm test --if-present
+            '''
+          }
+        }
+
+        stage('SonarQube') {
+          steps {
+            withSonarQubeEnv('sonarqube') {
+              sh 'mercury-ci sonar "$APP" "-Dsonar.exclusions=node_modules/**"'
+            }
+          }
+        }
+
+        // La espera del quality gate no consume recursos: los escáneres corren mientras tanto
+        stage('Análisis') {
+          failFast true
+          parallel {
+            stage('Quality gate') {
+              steps {
+                timeout(time: 10, unit: 'MINUTES') {
+                  waitForQualityGate abortPipeline: true
                 }
+              }
             }
-            steps {
-                // Instala dependencias y prepara artefactos
-                sh 'npm ci'
-                // sh 'npm test' // Descomentar si tienes tests
-                
-                // Deja solo dependencias de producción para no saturar el servidor
-                sh 'npm prune --omit=dev'
+
+            stage('Seguridad') {
+              steps {
+                sh '''
+                  mercury-ci semgrep
+                  mercury-ci trivy-fs
+                '''
+              }
             }
+          }
         }
 
-        // stage('Deploy al Host') {
-
-        //     agent any
-
-        //     steps {
-        //         sshagent(credentials: ['deploy-host-key']) {
-
-        //             sh '''
-        //                 rsync -avz --delete \
-        //                   -e "ssh -o StrictHostKeyChecking=no" \
-        //                   --exclude='.git' \
-        //                   --exclude='.env' \
-        //                   --exclude='Jenkinsfile' \
-        //                   ./ \
-        //                   ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/
-        //             '''
-        //         }
-        //     }
-        // }
-
-
-        // stage('Recargar aplicación') {
-
-        //     agent any
-
-        //     steps {
-
-        //         sshagent(credentials: ['deploy-host-key']) {
-
-        //             sh '''
-        //                 ssh -o StrictHostKeyChecking=no \
-        //                 ${DEPLOY_USER}@${DEPLOY_HOST} "
-        //                     pm2 reload ${APP_NAME} || \
-        //                     pm2 start ${DEPLOY_DIR}/src/index.js \
-        //                     --name ${APP_NAME}
-        //                 "
-        //             '''
-        //         }
-        //     }
-        // }
-
-        stage('Docker Build'){
-
-		    steps {
-				sh 'docker build -t ${APP_NAME}:${IMAGE_TAG} .'
-		    }
-		}
-
-        stage('Docker Deploy') {
-
-		    steps {
-		        sh '''
-		            echo "Deploying GREEN..."
-		
-		            docker rm -f ${APP_NAME}-green || true
-		
-		            docker run -d \
-		                --name ${APP_NAME}-green \
-		                -p 8084:3000 \
-		                ${APP_NAME}:${IMAGE_TAG}
-		        '''
-		    }
-		}
-
-        stage('Health Check GREEN') {
-
-		    steps {
-		        script {
-		            try {
-		                sh '''
-		                    sleep 3
-		                    docker exec ${APP_NAME}-green node -e "fetch('http://127.0.0.1:3000/api/health').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
-		                '''
-		            } catch (Exception e) {
-			                sh 'docker ps -a --filter name=${APP_NAME}-green'
-			                sh 'docker logs ${APP_NAME}-green || true'
-		                sh 'docker rm -f ${APP_NAME}-green || true'
-		
-		                error "GREEN deployment failed"
-		            }
-		        }
-		    }
-		}
-
-        stage('Switch to GREEN') {
-
-		    steps {
-		        sh '''
-		            docker rm -f ${APP_NAME} || true
-		
-		            docker run -d \
-		                --name ${APP_NAME} \
-		                -p 8085:3000 \
-                        --network devops-net \
-                        --restart unless-stopped \
-		                ${APP_NAME}:${IMAGE_TAG}
-		
-		            docker rm -f ${APP_NAME}-green || true
-		        '''
-		    }
-		}
-
-        stage('Health Check Production') {
-
-		    steps {
-		        script {
-		            try {
-		                sh '''
-		                    sleep 3
-		                    docker exec ${APP_NAME} node -e "fetch('http://127.0.0.1:3000/api/health').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
-		                '''
-		            } catch (Exception e) {
-		
-		                def previousBuild = currentBuild.previousSuccessfulBuild
-		
-		                if (previousBuild == null) {
-		                    error "No previous successful build available"
-		                }
-		
-		                def previousTag = previousBuild.number.toString()
-		
-		                echo "Rolling back to ${APP_NAME}:${previousTag}"
-		
-		                sh """
-		                    docker rm -f ${APP_NAME} || true
-		
-		                    docker run -d \
-		                        --name ${APP_NAME} \
-		                        -p 8085:3000 \
-		                        ${APP_NAME}:${previousTag}
-		
-		                    sleep 3
-		
-		                    docker exec ${APP_NAME} node -e "fetch('http://127.0.0.1:3000/api/health').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
-		                """
-		
-		                throw e
-		            }
-		        }
-		    }
-		}
-    }
-
-    post {
-        success {
-            echo "API desplegada y recargada con éxito en ${DEPLOY_DIR}"
+        stage('Imagen') {
+          steps {
+            sh '''
+              mercury-ci login
+              mercury-ci package node . "$APP" "$TAG"
+              mercury-ci trivy-image "$(mercury-ci image-ref "$APP" "$TAG")"
+            '''
+          }
         }
+
+        stage('Deploy dev') {
+          steps {
+            sh 'mercury-ci deploy "$APP" dev "$TAG"'
+          }
+        }
+      }
+      post {
+        always {
+          // El agente es efímero: sin esto el informe de Semgrep se pierde
+          archiveArtifacts artifacts: 'semgrep.json', allowEmptyArchive: true
+        }
+      }
     }
+
+    // Sin agente: la espera no ocupa RAM ni un cupo de agente
+    stage('Aprobar prod') {
+      steps {
+        timeout(time: 1, unit: 'DAYS') {
+          input message: "¿Promover ${APP}:${TAG} a prod?"
+        }
+      }
+    }
+
+    stage('Deploy prod') {
+      agent { label 'base' }
+      environment {
+        REGISTRY = credentials('registry')
+      }
+      options {
+        skipDefaultCheckout()
+        timeout(time: 10, unit: 'MINUTES')
+      }
+      steps {
+        sh '''
+          mercury-ci login
+          mercury-ci deploy "$APP" prod "$TAG"
+        '''
+      }
+    }
+  }
 }
