@@ -40,7 +40,8 @@ pipeline {
         stage('SonarQube') {
           steps {
             withSonarQubeEnv('sonarqube') {
-              sh 'mercury-ci sonar "$APP" "-Dsonar.exclusions=node_modules/**"
+              sh '''
+                mercury-ci sonar "$APP" "-Dsonar.exclusions=node_modules/**"
 
                 echo
                 echo "=== SONAR REPORT ==="
